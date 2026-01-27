@@ -20,3 +20,46 @@ awslocal dynamodb create-table \
 awslocal dynamodb wait table-exists --table-name model-registry
 
 echo "Model registry table 'model-registry' is ready."
+
+# Deploy Lambda Functions
+echo "Building and deploying Lambda functions..."
+
+(cd $LAMBDAS_PATH/classify_anomaly; rm -f lambda.zip; zip lambda.zip handler.py)
+(cd $LAMBDAS_PATH/classify_level; rm -f lambda.zip; zip lambda.zip handler.py)
+
+# Lambda will fail if version doesn't exist in registry
+awslocal lambda create-function \
+    --function-name classify_anomaly \
+    --runtime python3.11 \
+    --timeout 10 \
+    --zip-file fileb://$LAMBDAS_PATH/classify_anomaly/lambda.zip \
+    --handler handler.handler \
+    --role arn:aws:iam::000000000000:role/lambda-role \
+    --environment Variables="{STAGE=local,MODEL_REGISTRY_TABLE=model-registry}"
+
+awslocal lambda wait function-active-v2 --function-name classify_anomaly
+
+awslocal lambda create-function-url-config \
+    --function-name classify_anomaly \
+    --auth-type NONE
+
+awslocal lambda create-function \
+    --function-name classify_level \
+    --runtime python3.11 \
+    --timeout 10 \
+    --zip-file fileb://$LAMBDAS_PATH/classify_level/lambda.zip \
+    --handler handler.handler \
+    --role arn:aws:iam::000000000000:role/lambda-role \
+    --environment Variables="{STAGE=local,MODEL_REGISTRY_TABLE=model-registry}"
+
+awslocal lambda wait function-active-v2 --function-name classify_level
+
+awslocal lambda create-function-url-config \
+    --function-name classify_level \
+    --auth-type NONE
+
+echo
+echo "Fetching function URL for 'classify_anomaly' Lambda..."
+awslocal lambda list-function-url-configs --function-name classify_anomaly --output json | jq -r '.FunctionUrlConfigs[0].FunctionUrl'
+echo "Fetching function URL for 'classify_level' Lambda..."
+awslocal lambda list-function-url-configs --function-name classify_level --output json | jq -r '.FunctionUrlConfigs[0].FunctionUrl'

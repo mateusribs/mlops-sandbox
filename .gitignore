@@ -11,3 +11,4 @@ wheels/
 grafana-data/
 localstack-data/
 .env*
+src/lambdas/**/*.zip
