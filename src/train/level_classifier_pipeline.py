@@ -58,7 +58,6 @@ if __name__ == "__main__":
         s3_bucket=bucket_name,
         s3_key=s3_key,
         model_type="ToyLevelClassifier",
-        metrics=metrics,
     )
 
     Path(model_path).unlink()

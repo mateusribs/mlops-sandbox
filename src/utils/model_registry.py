@@ -1,6 +1,7 @@
 import boto3
 import pendulum
 from loguru import logger
+import os
 
 
 def register_model_version(
@@ -27,7 +28,13 @@ def register_model_version(
     - SK (RANGE): version
     - Attributes: s3_bucket, s3_key, trained_at, model_type
     """
-    dynamodb = boto3.resource("dynamodb")
+    dynamodb = boto3.resource(
+        "dynamodb",
+        endpoint_url=os.environ["LOCALSTACK_ENDPOINT_URL"],
+        aws_access_key_id=os.environ["LOCALSTACK_ACCESS_KEY_ID"],
+        aws_secret_access_key=os.environ["LOCALSTACK_SECRET_ACCESS_KEY"],
+        region_name=os.environ["LOCALSTACK_REGION_NAME"],
+    )
     table = dynamodb.Table(table_name)
 
     item = {
