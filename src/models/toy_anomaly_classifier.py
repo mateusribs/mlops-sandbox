@@ -1,4 +1,6 @@
-import pickle
+import json
+from datetime import datetime
+from typing import Dict
 
 import numpy as np
 
@@ -33,11 +35,25 @@ class ToyAnomalyClassifier:
         """
         return data_point.value > self.threshold
 
+    def to_dict(self) -> Dict:
+        """Serializes model parameters to dictionary.
+
+        Returns:
+            dict: Model parameters including version metadata.
+        """
+        return {
+            "mean": float(self.mean),
+            "std": float(self.std),
+            "threshold": float(self.threshold),
+            "model_type": "ToyAnomalyClassifier",
+            "version": datetime.utcnow().isoformat(),
+        }
+
     def save_model(self, file_path: str) -> None:
-        """Saves the model parameters to a file.
+        """Saves the model parameters to a JSON file.
 
         Args:
             file_path (str): The path to the file where the model will be saved.
         """
-        with open(file_path, "wb") as f:
-            pickle.dump(self, f)
+        with open(file_path, "w") as f:
+            json.dump(self.to_dict(), f)

@@ -1,4 +1,6 @@
-import pickle
+import json
+from datetime import datetime
+from typing import Dict
 
 from src.schemas.data_point import DataPoint, TimeSeries
 
@@ -37,11 +39,24 @@ class ToyLevelClassifier:
         else:
             return "normal"
 
+    def to_dict(self) -> Dict:
+        """Serializes model parameters to dictionary.
+
+        Returns:
+            dict: Model parameters including version metadata.
+        """
+        return {
+            "baseline_avg": float(self.baseline_avg),
+            "std_dev": float(self.std_dev),
+            "model_type": "ToyLevelClassifier",
+            "version": datetime.utcnow().isoformat(),
+        }
+
     def save_model(self, file_path: str) -> None:
-        """Saves the model parameters to a file.
+        """Saves the model parameters to a JSON file.
 
         Args:
             file_path (str): The path to the file where the model will be saved.
         """
-        with open(file_path, "wb") as f:
-            pickle.dump(self, f)
+        with open(file_path, "w") as f:
+            json.dump(self.to_dict(), f)
