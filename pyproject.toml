@@ -7,7 +7,9 @@ requires-python = ">=3.13"
 dependencies = [
     "boto3>=1.42.35",
     "dotenv>=0.9.9",
+    "loguru>=0.7.3",
     "numpy>=2.4.1",
+    "pendulum>=3.1.0",
     "pydantic>=2.12.5",
 ]
 
@@ -20,6 +22,7 @@ dev = [
     "faker>=33.6.0",
     "httpx>=0.28.1",
 ]
+infra = []
 
 [tool.ruff.lint]
 select = [
