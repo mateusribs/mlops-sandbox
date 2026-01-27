@@ -1,6 +1,5 @@
 import json
 from datetime import datetime
-from typing import Dict
 
 import numpy as np
 
@@ -35,7 +34,7 @@ class ToyAnomalyClassifier:
         """
         return data_point.value > self.threshold
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Serializes model parameters to dictionary.
 
         Returns:

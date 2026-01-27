@@ -1,6 +1,5 @@
 import json
 from datetime import datetime
-from typing import Dict
 
 from src.schemas.data_point import DataPoint, TimeSeries
 
@@ -39,7 +38,7 @@ class ToyLevelClassifier:
         else:
             return "normal"
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Serializes model parameters to dictionary.
 
         Returns:
