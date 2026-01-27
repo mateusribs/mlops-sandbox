@@ -1,6 +1,9 @@
 import json
 import os
+import time
 from dataclasses import dataclass
+from datetime import datetime
+from decimal import Decimal
 
 import boto3
 
@@ -9,6 +12,7 @@ s3 = boto3.client("s3")
 dynamodb = boto3.resource("dynamodb")
 
 MODEL_REGISTRY_TABLE = os.environ.get("MODEL_REGISTRY_TABLE", "model-registry")
+
 
 @dataclass
 class DataPoint:
@@ -34,11 +38,11 @@ class ToyLevelClassifier:
 
 def get_model_metadata(model_name: str, model_version: str) -> dict:
     """Fetch model metadata from DynamoDB registry.
-    
+
     Args:
         model_name (str): The name of the model.
         model_version (str): The version of the model.
-    
+
     Returns:
         dict: The model metadata.
     """
@@ -59,7 +63,7 @@ def get_model_metadata(model_name: str, model_version: str) -> dict:
 
 def load_model(model_name: str, model_version: str) -> ToyLevelClassifier:
     """Load the level classifier model from S3 based on metadata from DynamoDB.
-    
+
     Args:
         model_name (str): The name of the model to load.
         model_version (str): The version of the model to load.
@@ -94,20 +98,26 @@ def handler(event, context):
         dict: The classification result (high/normal/low).
     """
     try:
+        start = time.perf_counter()
+
         model = load_model(model_name=event["model_name"], model_version=event["model_version"])
         data_point = DataPoint(value=event["value"], timestamp=event["timestamp"])
         level = model.predict(data_point)
 
-        return {
-            "statusCode": 200,
-            "body": {
-                "level": level
+        latency_ms = (time.perf_counter() - start) * 1000
+
+        predictions_table = dynamodb.Table("model-predictions")
+        predictions_table.put_item(
+            Item={
+                "model_name": event["model_name"],
+                "timestamp": datetime.now().isoformat(),
+                "version": event["model_version"],
+                "input": {"value": Decimal(str(event["value"])), "timestamp": event["timestamp"]},
+                "output": {"level": level},
+                "latency_ms": Decimal(str(latency_ms)),
             }
-        }
+        )
+
+        return {"statusCode": 200, "body": {"level": level}}
     except Exception as e:
-        return {
-            "statusCode": 500,
-            "body": {
-                "error": str(e)
-            }
-        }
+        return {"statusCode": 500, "body": {"error": str(e)}}

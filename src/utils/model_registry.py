@@ -1,7 +1,8 @@
+import os
+
 import boto3
 import pendulum
 from loguru import logger
-import os
 
 
 def register_model_version(
