@@ -1,17 +1,22 @@
-import logging
+import os
 from pathlib import Path
 
 from dotenv import load_dotenv
+from loguru import logger
 
 from src.models.toy_anomaly_classifier import ToyAnomalyClassifier
 from src.schemas.data_point import DataPoint, TimeSeries
+from src.utils.model_registry import register_model_version
 from src.utils.s3 import upload_model_to_s3
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
 
+def train(version: str = "v1") -> tuple[str, dict]:
+    """
+    Train anomaly classifier model.
 
-def train() -> str:
+    Args:
+        version: Simple version
+    """
     # Example usage
     data_points = [
         DataPoint(value=10.0, timestamp="1622548800"),
@@ -25,14 +30,38 @@ def train() -> str:
     model = ToyAnomalyClassifier()
     model.fit(time_series)
 
-    model_path = "toy_anomaly_classifier.pkl"
+    model_path = f"toy_anomaly_classifier_{version}.json"
     model.save_model(model_path)
-    return model_path
+
+    metrics = {
+        "mean": float(model.mean),
+        "std": float(model.std),
+        "threshold": float(model.threshold),
+    }
+
+    return model_path, metrics
 
 
 if __name__ == "__main__":
     load_dotenv()
-    model_path = train()
+
+    version = os.environ.get("ANOMALY_CLASSIFIER_MODEL_VERSION", "v1")
+
     bucket_name = "anomaly-classifier-models"
-    upload_model_to_s3(model_path, bucket_name, model_path)
-    Path(model_path).unlink()  # Clean up local file after upload
+    model_path, metrics = train(version)
+
+    # Upload to S3 with versioned key
+    s3_key = f"models/{version}/toy_anomaly_classifier.json"
+    upload_model_to_s3(model_path, bucket_name, s3_key)
+
+    # Register in DynamoDB
+    register_model_version(
+        model_name="anomaly_classifier",
+        version=version,
+        s3_bucket=bucket_name,
+        s3_key=s3_key,
+        model_type="ToyAnomalyClassifier",
+    )
+
+    Path(model_path).unlink()
+    logger.info(f"Model {version} trained, uploaded, and registered")

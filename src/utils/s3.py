@@ -1,15 +1,12 @@
-import logging
 import os
 
 import boto3
-
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+from loguru import logger
 
 
 def upload_model_to_s3(model_path: str, bucket_name: str, object_name: str) -> None:
     """Uploads the trained model to an S3 bucket.
-    
+
     Args:
         model_path (str): Local path to the trained model file.
         bucket_name (str): Name of the S3 bucket to upload the model to.
