@@ -225,6 +225,124 @@
         "Principal": "*",
         "FunctionUrlAuthType": "NONE"
       }
+    },
+
+    "MLOpsRestApi": {
+      "Type": "AWS::ApiGateway::RestApi",
+      "Properties": {
+        "Name": "mlops-sandbox-api",
+        "Description": "REST API for MLOps Lambda functions with path-based routing",
+        "EndpointConfiguration": {
+          "Types": ["REGIONAL"]
+        }
+      }
+    },
+
+    "AnomalyResource": {
+      "Type": "AWS::ApiGateway::Resource",
+      "Properties": {
+        "RestApiId": {
+          "Ref": "MLOpsRestApi"
+        },
+        "ParentId": {
+          "Fn::GetAtt": ["MLOpsRestApi", "RootResourceId"]
+        },
+        "PathPart": "anomaly"
+      }
+    },
+
+    "LevelResource": {
+      "Type": "AWS::ApiGateway::Resource",
+      "Properties": {
+        "RestApiId": {
+          "Ref": "MLOpsRestApi"
+        },
+        "ParentId": {
+          "Fn::GetAtt": ["MLOpsRestApi", "RootResourceId"]
+        },
+        "PathPart": "level"
+      }
+    },
+
+    "AnomalyPostMethod": {
+      "Type": "AWS::ApiGateway::Method",
+      "Properties": {
+        "RestApiId": {
+          "Ref": "MLOpsRestApi"
+        },
+        "ResourceId": {
+          "Ref": "AnomalyResource"
+        },
+        "HttpMethod": "POST",
+        "AuthorizationType": "NONE",
+        "Integration": {
+          "Type": "AWS_PROXY",
+          "IntegrationHttpMethod": "POST",
+          "Uri": {
+            "Fn::Sub": "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ClassifyAnomalyFunction.Arn}/invocations"
+          }
+        }
+      }
+    },
+
+    "LevelPostMethod": {
+      "Type": "AWS::ApiGateway::Method",
+      "Properties": {
+        "RestApiId": {
+          "Ref": "MLOpsRestApi"
+        },
+        "ResourceId": {
+          "Ref": "LevelResource"
+        },
+        "HttpMethod": "POST",
+        "AuthorizationType": "NONE",
+        "Integration": {
+          "Type": "AWS_PROXY",
+          "IntegrationHttpMethod": "POST",
+          "Uri": {
+            "Fn::Sub": "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ClassifyLevelFunction.Arn}/invocations"
+          }
+        }
+      }
+    },
+
+    "ClassifyAnomalyInvokePermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "FunctionName": {
+          "Ref": "ClassifyAnomalyFunction"
+        },
+        "Action": "lambda:InvokeFunction",
+        "Principal": "apigateway.amazonaws.com",
+        "SourceArn": {
+          "Fn::Sub": "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${MLOpsRestApi}/*"
+        }
+      }
+    },
+
+    "ClassifyLevelInvokePermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "FunctionName": {
+          "Ref": "ClassifyLevelFunction"
+        },
+        "Action": "lambda:InvokeFunction",
+        "Principal": "apigateway.amazonaws.com",
+        "SourceArn": {
+          "Fn::Sub": "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${MLOpsRestApi}/*"
+        }
+      }
+    },
+
+    "ApiDeployment": {
+      "Type": "AWS::ApiGateway::Deployment",
+      "DependsOn": ["AnomalyPostMethod", "LevelPostMethod"],
+      "Properties": {
+        "RestApiId": {
+          "Ref": "MLOpsRestApi"
+        },
+        "StageName": "local"
+      }
     }
   },
   
@@ -281,6 +399,30 @@
       "Description": "ARN of the Lambda execution role",
       "Value": {
         "Fn::GetAtt": ["LambdaExecutionRole", "Arn"]
+      }
+    },
+    "RestApiId": {
+      "Description": "ID of the REST API",
+      "Value": {
+        "Ref": "MLOpsRestApi"
+      }
+    },
+    "RestApiEndpointBase": {
+      "Description": "Base URL of the REST API",
+      "Value": {
+        "Fn::Sub": "https://${MLOpsRestApi}.execute-api.${AWS::Region}.amazonaws.com/local"
+      }
+    },
+    "RestApiAnomalyEndpoint": {
+      "Description": "Endpoint for anomaly classification",
+      "Value": {
+        "Fn::Sub": "https://${MLOpsRestApi}.execute-api.${AWS::Region}.amazonaws.com/local/anomaly"
+      }
+    },
+    "RestApiLevelEndpoint": {
+      "Description": "Endpoint for level classification",
+      "Value": {
+        "Fn::Sub": "https://${MLOpsRestApi}.execute-api.${AWS::Region}.amazonaws.com/local/level"
       }
     }
   }

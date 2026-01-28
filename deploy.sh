@@ -42,7 +42,6 @@ awslocal cloudformation deploy \
   LambdaCodeBucket=$S3_BUCKET \
   --capabilities CAPABILITY_NAMED_IAM
 
-echo ""
 echo "Waiting for stack to be ready..."
 awslocal cloudformation wait stack-create-complete --stack-name $STACK_NAME 2>/dev/null ||
   awslocal cloudformation wait stack-update-complete --stack-name $STACK_NAME 2>/dev/null || true
@@ -50,9 +49,9 @@ awslocal cloudformation wait stack-create-complete --stack-name $STACK_NAME 2>/d
 echo "Stack Outputs:"
 awslocal cloudformation describe-stacks --stack-name $STACK_NAME --query 'Stacks[0].Outputs[*].[OutputKey,OutputValue]' --output table
 
-echo "Function URLs:"
-CLASSIFY_ANOMALY_URL=$(awslocal cloudformation describe-stacks --stack-name $STACK_NAME --query 'Stacks[0].Outputs[?OutputKey==`ClassifyAnomalyFunctionUrl`].OutputValue' --output text)
-CLASSIFY_LEVEL_URL=$(awslocal cloudformation describe-stacks --stack-name $STACK_NAME --query 'Stacks[0].Outputs[?OutputKey==`ClassifyLevelFunctionUrl`].OutputValue' --output text)
+echo "API Gateway Endpoints"
+ANOMALY_ENDPOINT=$(awslocal cloudformation describe-stacks --stack-name $STACK_NAME --query 'Stacks[0].Outputs[?OutputKey==`RestApiAnomalyEndpoint`].OutputValue' --output text)
+LEVEL_ENDPOINT=$(awslocal cloudformation describe-stacks --stack-name $STACK_NAME --query 'Stacks[0].Outputs[?OutputKey==`RestApiLevelEndpoint`].OutputValue' --output text)
 
-echo "classify_anomaly: $CLASSIFY_ANOMALY_URL"
-echo "classify_level:   $CLASSIFY_LEVEL_URL"
+echo "Anomaly Classification: $ANOMALY_ENDPOINT"
+echo "Level Classification:   $LEVEL_ENDPOINT"
