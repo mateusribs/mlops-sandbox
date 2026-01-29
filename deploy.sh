@@ -46,6 +46,8 @@ echo "Waiting for stack to be ready..."
 awslocal cloudformation wait stack-create-complete --stack-name $STACK_NAME 2>/dev/null ||
   awslocal cloudformation wait stack-update-complete --stack-name $STACK_NAME 2>/dev/null || true
 
+make train-models
+
 echo "Stack Outputs:"
 awslocal cloudformation describe-stacks --stack-name $STACK_NAME --query 'Stacks[0].Outputs[*].[OutputKey,OutputValue]' --output table
 
