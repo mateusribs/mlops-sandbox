@@ -34,9 +34,9 @@ def train(version: str = "v1") -> tuple[str, dict]:
     model.save_model(model_path)
 
     metrics = {
-        "mean": float(model.mean),
-        "std": float(model.std),
-        "threshold": float(model.threshold),
+        "mean": model.mean,
+        "std": model.std,
+        "threshold": model.threshold,
     }
 
     return model_path, metrics

@@ -34,7 +34,7 @@ def train(version: str = "v1") -> tuple[str, dict]:
     model_path = f"toy_level_classifier_{version}.json"
     model.save_model(model_path)
 
-    metrics = {"baseline_avg": float(model.baseline_avg), "std_dev": float(model.std_dev)}
+    metrics = {"baseline_avg": model.baseline_avg, "std_dev": model.std_dev}
 
     return model_path, metrics
 
