@@ -1,3 +1,12 @@
+# API Gateway Configuration
+API_GATEWAY_CONFIG = {
+    "endpoints": {
+        "classify_anomaly": "/anomaly",
+        "classify_level": "/level",
+    },
+}
+
+# Lambda Function Configurations (used for payload generation)
 LAMBDA_FUNCTIONS = {
     "classify_anomaly": {
         "name": "classify_anomaly",

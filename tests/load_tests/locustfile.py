@@ -1,77 +1,94 @@
-import json
 import os
 import random
 import sys
-from datetime import UTC, datetime
+from datetime import datetime
 
-import boto3
 from dotenv import load_dotenv
-from locust import TaskSet, User, between, task
+from locust import HttpUser, TaskSet, between, task
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(__file__))
 
-from tests.load_tests.config import LAMBDA_FUNCTIONS, LOAD_TEST_CONFIG
+from tests.load_tests.config import API_GATEWAY_CONFIG, LAMBDA_FUNCTIONS, LOAD_TEST_CONFIG
 
 load_dotenv()
 
 
-class LambdaTasks(TaskSet):
-    """Task set for Lambda invocations."""
-
-    def on_start(self):
-        """Initialize Lambda client."""
-        self.lambda_client = boto3.client(
-            "lambda",
-            endpoint_url=os.environ["LOCALSTACK_ENDPOINT_URL"],
-            aws_access_key_id=os.environ["LOCALSTACK_ACCESS_KEY_ID"],
-            aws_secret_access_key=os.environ["LOCALSTACK_SECRET_ACCESS_KEY"],
-            region_name=os.environ["LOCALSTACK_REGION_NAME"],
-        )
+class APIGatewayTasks(TaskSet):
+    """Task set for API Gateway HTTP requests."""
 
     def _generate_payload(self, lambda_config: dict) -> dict:
-        """Generate random test payload."""
+        """
+        Generate random test payload for API requests.
+
+        Args:
+            lambda_config: Configuration dict with model details
+
+        Returns:
+            dict: Payload ready for HTTP POST request
+        """
         value_min, value_max = LOAD_TEST_CONFIG["value_range"]
         return {
             "model_name": lambda_config["model_name"],
             "model_version": lambda_config["model_version"],
             "value": random.uniform(value_min, value_max),
-            "timestamp": datetime.now(UTC).isoformat(),
+            "timestamp": datetime.now().isoformat(),
         }
 
     @task(1)
     def invoke_classify_anomaly(self):
-        """Task: Invoke classify_anomaly Lambda function."""
+        """Task: Send HTTP POST request to /anomaly endpoint."""
         payload = self._generate_payload(LAMBDA_FUNCTIONS["classify_anomaly"])
+        endpoint = API_GATEWAY_CONFIG["endpoints"]["classify_anomaly"]
+
         try:
-            response = self.lambda_client.invoke(
-                FunctionName="classify_anomaly",
-                InvocationType="RequestResponse",
-                Payload=json.dumps(payload),
+            # Make HTTP POST request to API Gateway endpoint
+            # Locust automatically records response time and status
+            headers = {"Content-Type": "application/json"}
+
+            response = self.client.post(
+                endpoint,
+                json=payload,
+                headers=headers,
+                name="classify_anomaly",  # Locust uses this for grouping results
+                timeout=10,
             )
-            result = json.loads(response["Payload"].read())
-            if result.get("statusCode") == 200:
+
+            # Check if response indicates success
+            # Note: API Gateway returns 200 for successful invocations
+            # Lambda errors are in the body with statusCode 500
+            if response.status_code == 200:
+                _ = response.json()
+                # Log success to Locust
                 self.user.environment.events.request.fire(
-                    request_type="lambda",
+                    request_type="http",
                     name="classify_anomaly",
-                    response_time=0,
-                    response_length=len(json.dumps(result)),
+                    response_time=response.elapsed.total_seconds() * 1000,
+                    response_length=len(response.content),
                     exception=None,
                     context={},
                 )
             else:
-                error = result.get("body", {}).get("error", "Unknown error")
+                # API Gateway returned error status code
+                error_msg = f"HTTP {response.status_code}"
+                try:
+                    error_body = response.json()
+                    error_msg = error_body.get("body", {}).get("error", error_msg)
+                except Exception as _:
+                    error_msg = response.text or error_msg
+
                 self.user.environment.events.request.fire(
-                    request_type="lambda",
+                    request_type="http",
                     name="classify_anomaly",
-                    response_time=0,
+                    response_time=response.elapsed.total_seconds() * 1000,
                     response_length=0,
-                    exception=Exception(error),
+                    exception=Exception(error_msg),
                     context={},
                 )
         except Exception as e:
+            # Network error or request timeout
             self.user.environment.events.request.fire(
-                request_type="lambda",
+                request_type="http",
                 name="classify_anomaly",
                 response_time=0,
                 response_length=0,
@@ -81,37 +98,56 @@ class LambdaTasks(TaskSet):
 
     @task(1)
     def invoke_classify_level(self):
-        """Task: Invoke classify_level Lambda function."""
+        """Task: Send HTTP POST request to /level endpoint."""
         payload = self._generate_payload(LAMBDA_FUNCTIONS["classify_level"])
+        endpoint = API_GATEWAY_CONFIG["endpoints"]["classify_level"]
+
         try:
-            response = self.lambda_client.invoke(
-                FunctionName="classify_level",
-                InvocationType="RequestResponse",
-                Payload=json.dumps(payload),
+            # Make HTTP POST request to API Gateway endpoint
+            # Locust automatically records response time and status
+            headers = {"Content-Type": "application/json"}
+
+            response = self.client.post(
+                endpoint,
+                json=payload,
+                headers=headers,
+                name="classify_level",  # Locust uses this for grouping results
+                timeout=10,
             )
-            result = json.loads(response["Payload"].read())
-            if result.get("statusCode") == 200:
+
+            # Check if response indicates success
+            if response.status_code == 200:
+                _ = response.json()
+                # Log success to Locust
                 self.user.environment.events.request.fire(
-                    request_type="lambda",
+                    request_type="http",
                     name="classify_level",
-                    response_time=0,
-                    response_length=len(json.dumps(result)),
+                    response_time=response.elapsed.total_seconds() * 1000,
+                    response_length=len(response.content),
                     exception=None,
                     context={},
                 )
             else:
-                error = result.get("body", {}).get("error", "Unknown error")
+                # API Gateway returned error status code
+                error_msg = f"HTTP {response.status_code}"
+                try:
+                    error_body = response.json()
+                    error_msg = error_body.get("body", {}).get("error", error_msg)
+                except Exception as _:
+                    error_msg = response.text or error_msg
+
                 self.user.environment.events.request.fire(
-                    request_type="lambda",
+                    request_type="http",
                     name="classify_level",
-                    response_time=0,
+                    response_time=response.elapsed.total_seconds() * 1000,
                     response_length=0,
-                    exception=Exception(error),
+                    exception=Exception(error_msg),
                     context={},
                 )
         except Exception as e:
+            # Network error or request timeout
             self.user.environment.events.request.fire(
-                request_type="lambda",
+                request_type="http",
                 name="classify_level",
                 response_time=0,
                 response_length=0,
@@ -120,8 +156,11 @@ class LambdaTasks(TaskSet):
             )
 
 
-class LambdaLoadTestUser(User):
-    """Load test user that invokes Lambda functions."""
+class APIGatewayLoadTestUser(HttpUser):
+    """Load test user that makes HTTP requests to API Gateway."""
 
-    tasks = [LambdaTasks]
+    # Tasks to execute
+    tasks = [APIGatewayTasks]
+
+    # Wait time between requests (1-2 seconds)
     wait_time = between(1, 2)
