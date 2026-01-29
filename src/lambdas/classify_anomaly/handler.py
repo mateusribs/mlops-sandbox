@@ -1,6 +1,5 @@
 import json
 import os
-import time
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
@@ -94,25 +93,36 @@ def handler(event, context):
         dict: The classification result indicating if the data point is an anomaly.
     """
     try:
-        start = time.perf_counter()
-        model = load_model(model_name=event["model_name"], model_version=event["model_version"])
-        data_point = DataPoint(value=event["value"], timestamp=event["timestamp"])
-        is_anomaly = model.predict(data_point)
+        try:
+            model_name = event["model_name"]
+            model_version = event["model_version"]
+            value = event["value"]
+            timestamp = event["timestamp"]
+        except KeyError as e:
+            print(f"Key {e} not found")
 
-        latency_ms = int((time.perf_counter() - start) * 1000)
+        if "body" in event:
+            body = json.loads(event["body"])
+            model_name = body.get("model_name")
+            model_version = body.get("model_version")
+            value = body.get("value")
+            timestamp = body.get("timestamp")
+
+        model = load_model(model_name=model_name, model_version=model_version)
+        data_point = DataPoint(value=value, timestamp=timestamp)
+        is_anomaly = model.predict(data_point)
 
         predictions_table = dynamodb.Table("model-predictions")
         predictions_table.put_item(
             Item={
-                "model_name": event["model_name"],
+                "model_name": model_name,
                 "timestamp": datetime.now().isoformat(),
-                "version": event["model_version"],
-                "input": {"value": Decimal(str(event["value"])), "timestamp": event["timestamp"]},
+                "version": model_version,
+                "input": {"value": Decimal(str(value)), "timestamp": timestamp},
                 "output": {"is_anomaly": is_anomaly},
-                "latency_ms": Decimal(str(latency_ms)),
             }
         )
 
-        return {"statusCode": 200, "body": {"is_anomaly": is_anomaly}}
+        return {"statusCode": 200, "body": json.dumps({"is_anomaly": is_anomaly})}
     except Exception as e:
         return {"statusCode": 500, "body": {"error": str(e)}}

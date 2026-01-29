@@ -1,6 +1,5 @@
 import json
 import os
-import time
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
@@ -98,23 +97,33 @@ def handler(event, context):
         dict: The classification result (high/normal/low).
     """
     try:
-        start = time.perf_counter()
+        try:
+            model_name = event["model_name"]
+            model_version = event["model_version"]
+            value = event["value"]
+            timestamp = event["timestamp"]
+        except KeyError as e:
+            print(f"Key {e} not found")
 
-        model = load_model(model_name=event["model_name"], model_version=event["model_version"])
-        data_point = DataPoint(value=event["value"], timestamp=event["timestamp"])
+        if "body" in event:
+            body = json.loads(event["body"])
+            model_name = body.get("model_name")
+            model_version = body.get("model_version")
+            value = body.get("value")
+            timestamp = body.get("timestamp")
+
+        model = load_model(model_name=model_name, model_version=model_version)
+        data_point = DataPoint(value=value, timestamp=timestamp)
         level = model.predict(data_point)
-
-        latency_ms = (time.perf_counter() - start) * 1000
 
         predictions_table = dynamodb.Table("model-predictions")
         predictions_table.put_item(
             Item={
-                "model_name": event["model_name"],
+                "model_name": model_name,
                 "timestamp": datetime.now().isoformat(),
-                "version": event["model_version"],
-                "input": {"value": Decimal(str(event["value"])), "timestamp": event["timestamp"]},
+                "version": model_version,
+                "input": {"value": Decimal(str(value)), "timestamp": timestamp},
                 "output": {"level": level},
-                "latency_ms": Decimal(str(latency_ms)),
             }
         )
 
