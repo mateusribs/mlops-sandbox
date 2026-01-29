@@ -45,10 +45,10 @@ class ToyLevelClassifier:
             dict: Model parameters including version metadata.
         """
         return {
-            "baseline_avg": float(self.baseline_avg),
-            "std_dev": float(self.std_dev),
+            "baseline_avg": self.baseline_avg,
+            "std_dev": self.std_dev,
             "model_type": "ToyLevelClassifier",
-            "version": datetime.utcnow().isoformat(),
+            "version": datetime.now().isoformat(),
         }
 
     def save_model(self, file_path: str) -> None:
