@@ -17,13 +17,20 @@ awslocal s3 mb s3://$S3_BUCKET 2>/dev/null || echo "Bucket $S3_BUCKET already ex
 echo "Building Lambda functions..."
 (
   cd $LAMBDAS_PATH/classify_anomaly
-  rm -f lambda.zip
+  rm -rf packages lambda.zip
+  mkdir -p packages
+  pip install --platform manylinux2014_x86_64 --only-binary=:all: --python-version 3.13 --target packages/ -r requirements.txt
   zip -q lambda.zip handler.py
+  cd packages
+  zip -qr ../lambda.zip .
 )
 (
   cd $LAMBDAS_PATH/classify_level
-  rm -f lambda.zip
+  rm -rf packages lambda.zip
+  pip install --platform manylinux2014_x86_64 --only-binary=:all: --python-version 3.13 --target packages/ -r requirements.txt
   zip -q lambda.zip handler.py
+  cd packages
+  zip -qr ../lambda.zip .
 )
 echo "Lambda zip files created."
 

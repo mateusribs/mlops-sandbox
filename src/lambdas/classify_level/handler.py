@@ -5,7 +5,9 @@ from datetime import datetime
 from decimal import Decimal
 
 import boto3
+from aws_lambda_powertools.event_handler import APIGatewayRestResolver
 
+app = APIGatewayRestResolver()
 classifier_params = None
 s3 = boto3.client("s3")
 dynamodb = boto3.resource("dynamodb")
@@ -86,6 +88,35 @@ def load_model(model_name: str, model_version: str) -> ToyLevelClassifier:
     )
 
 
+@app.post("/level")
+def classify_level():
+    payload = app.current_event.json_body
+    try:
+        model_name = payload.get("model_name")
+        model_version = payload.get("model_version")
+        value = payload.get("value")
+        timestamp = payload.get("timestamp")
+    except KeyError as e:
+        KeyError(f"Missing required field in payload: {e}")
+
+    model = load_model(model_name=model_name, model_version=model_version)
+    data_point = DataPoint(value=value, timestamp=timestamp)
+    level = model.predict(data_point)
+
+    predictions_table = dynamodb.Table("model-predictions")
+    predictions_table.put_item(
+        Item={
+            "model_name": model_name,
+            "timestamp": datetime.now().isoformat(),
+            "version": model_version,
+            "input": {"value": Decimal(str(value)), "timestamp": timestamp},
+            "output": {"level": level},
+        }
+    )
+
+    return {"level": level}
+
+
 def handler(event, context):
     """AWS Lambda handler for classifying data point levels.
 
@@ -96,37 +127,4 @@ def handler(event, context):
     Returns:
         dict: The classification result (high/normal/low).
     """
-    try:
-        try:
-            model_name = event["model_name"]
-            model_version = event["model_version"]
-            value = event["value"]
-            timestamp = event["timestamp"]
-        except KeyError as e:
-            print(f"Key {e} not found")
-
-        if "body" in event:
-            body = json.loads(event["body"])
-            model_name = body.get("model_name")
-            model_version = body.get("model_version")
-            value = body.get("value")
-            timestamp = body.get("timestamp")
-
-        model = load_model(model_name=model_name, model_version=model_version)
-        data_point = DataPoint(value=value, timestamp=timestamp)
-        level = model.predict(data_point)
-
-        predictions_table = dynamodb.Table("model-predictions")
-        predictions_table.put_item(
-            Item={
-                "model_name": model_name,
-                "timestamp": datetime.now().isoformat(),
-                "version": model_version,
-                "input": {"value": Decimal(str(value)), "timestamp": timestamp},
-                "output": {"level": level},
-            }
-        )
-
-        return {"statusCode": 200, "body": {"level": level}}
-    except Exception as e:
-        return {"statusCode": 500, "body": {"error": str(e)}}
+    return app.resolve(event, context)

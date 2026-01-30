@@ -5,7 +5,9 @@ from datetime import datetime
 from decimal import Decimal
 
 import boto3
+from aws_lambda_powertools.event_handler import APIGatewayRestResolver
 
+app = APIGatewayRestResolver()
 classifier_params = None
 s3 = boto3.client("s3")
 dynamodb = boto3.resource("dynamodb")
@@ -82,47 +84,36 @@ def load_model(model_name: str, model_version: str) -> ToyAnomalyClassifier:
     )
 
 
-def handler(event, context):
-    """AWS Lambda handler for classifying anomalies in time series data.
+@app.post("/anomaly")
+def classify_anomaly():
+    payload = app.current_event.json_body
 
-    Args:
-        event (dict): The event payload containing the data point to classify.
-        context (LambdaContext): The runtime information of the Lambda function.
-
-    Returns:
-        dict: The classification result indicating if the data point is an anomaly.
-    """
     try:
-        try:
-            model_name = event["model_name"]
-            model_version = event["model_version"]
-            value = event["value"]
-            timestamp = event["timestamp"]
-        except KeyError as e:
-            print(f"Key {e} not found")
+        model_name = payload.get("model_name")
+        model_version = payload.get("model_version")
+        value = payload.get("value")
+        timestamp = payload.get("timestamp")
+    except KeyError as e:
+        KeyError(f"Missing required field in payload: {e}")
 
-        if "body" in event:
-            body = json.loads(event["body"])
-            model_name = body.get("model_name")
-            model_version = body.get("model_version")
-            value = body.get("value")
-            timestamp = body.get("timestamp")
+    model = load_model(model_name=model_name, model_version=model_version)
+    data_point = DataPoint(value=value, timestamp=timestamp)
+    is_anomaly = model.predict(data_point)
 
-        model = load_model(model_name=model_name, model_version=model_version)
-        data_point = DataPoint(value=value, timestamp=timestamp)
-        is_anomaly = model.predict(data_point)
+    predictions_table = dynamodb.Table("model-predictions")
+    predictions_table.put_item(
+        Item={
+            "model_name": model_name,
+            "timestamp": datetime.now().isoformat(),
+            "version": model_version,
+            "input": {"value": Decimal(str(value)), "timestamp": timestamp},
+            "output": {"is_anomaly": is_anomaly},
+        }
+    )
 
-        predictions_table = dynamodb.Table("model-predictions")
-        predictions_table.put_item(
-            Item={
-                "model_name": model_name,
-                "timestamp": datetime.now().isoformat(),
-                "version": model_version,
-                "input": {"value": Decimal(str(value)), "timestamp": timestamp},
-                "output": {"is_anomaly": is_anomaly},
-            }
-        )
+    return {"is_anomaly": is_anomaly}
 
-        return {"statusCode": 200, "body": json.dumps({"is_anomaly": is_anomaly})}
-    except Exception as e:
-        return {"statusCode": 500, "body": {"error": str(e)}}
+
+def handler(event, context):
+    """AWS Lambda handler for classifying anomalies in time series data."""
+    return app.resolve(event, context)
