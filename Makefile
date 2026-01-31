@@ -9,4 +9,4 @@ train-models:
 	@uv run src/train/level_classifier_pipeline.py
 
 load_test:
-	@uv run locust -f tests/load_tests/locustfile.py
+	@bash tests/load_tests/run_test.sh
