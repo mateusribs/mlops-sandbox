@@ -3,14 +3,17 @@ import os
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
+from functools import lru_cache
 
 import boto3
+from aws_lambda_powertools import Logger
 from aws_lambda_powertools.event_handler import APIGatewayRestResolver
 
+logger = Logger(service="ClassifyAnomaly")
 app = APIGatewayRestResolver()
-classifier_params = None
 s3 = boto3.client("s3")
 dynamodb = boto3.resource("dynamodb")
+cloudwatch = boto3.client("cloudwatch")
 
 MODEL_REGISTRY_TABLE = os.environ.get("MODEL_REGISTRY_TABLE", "model-registry")
 
@@ -57,6 +60,7 @@ def get_model_metadata(model_name: str, model_version: str) -> dict:
     return response["Item"]
 
 
+@lru_cache(maxsize=1)
 def load_model(model_name: str, model_version: str) -> ToyAnomalyClassifier:
     """Load the anomaly classifier model from S3 based on metadata from DynamoDB.
 
@@ -66,16 +70,11 @@ def load_model(model_name: str, model_version: str) -> ToyAnomalyClassifier:
     Returns:
         ToyAnomalyClassifier: The loaded anomaly classifier model.
     """
-    global classifier_params
+    metadata = get_model_metadata(model_name, model_version)
+    s3.download_file(metadata["s3_bucket"], metadata["s3_key"], "/tmp/model.json")
 
-    if classifier_params is None:
-        metadata = get_model_metadata(model_name, model_version)
-        s3.download_file(metadata["s3_bucket"], metadata["s3_key"], "/tmp/model.json")
-
-        with open("/tmp/model.json") as f:
-            classifier_params = json.load(f)
-
-        print(f"Loaded model {model_name}@{model_version} from {metadata['s3_key']}")
+    with open("/tmp/model.json") as f:
+        classifier_params = json.load(f)
 
     return ToyAnomalyClassifier(
         mean=classifier_params["mean"],
@@ -84,36 +83,65 @@ def load_model(model_name: str, model_version: str) -> ToyAnomalyClassifier:
     )
 
 
+def add_metric(metric_name: str, value: int) -> None:
+    """Helper function to add custom CloudWatch metrics."""
+    cloudwatch.put_metric_data(
+        Namespace="ClassifyAnomaly",
+        MetricData=[
+            {
+                "MetricName": metric_name,
+                "Value": value,
+                "Unit": "Count",
+                "Dimensions": [{"Name": "service", "Value": "ClassifyAnomalyService"}],
+            }
+        ],
+    )
+
+
 @app.post("/anomaly")
 def classify_anomaly():
     payload = app.current_event.json_body
-
     try:
         model_name = payload.get("model_name")
         model_version = payload.get("model_version")
         value = payload.get("value")
         timestamp = payload.get("timestamp")
     except KeyError as e:
-        KeyError(f"Missing required field in payload: {e}")
+        add_metric("MissingFieldError", 1)
+        logger.exception(f"Missing required field in payload: {e}")
+        return {"error": f"Missing required field: {str(e)}"}, 400
 
-    model = load_model(model_name=model_name, model_version=model_version)
-    data_point = DataPoint(value=value, timestamp=timestamp)
-    is_anomaly = model.predict(data_point)
+    try:
+        model = load_model(model_name=model_name, model_version=model_version)
+        data_point = DataPoint(value=value, timestamp=timestamp)
+        is_anomaly = model.predict(data_point)
+        add_metric("AnomalyDetected", int(is_anomaly))
+        add_metric("TotalPredictions", 1)
 
-    predictions_table = dynamodb.Table("model-predictions")
-    predictions_table.put_item(
-        Item={
+        predictions_table = dynamodb.Table("model-predictions")
+        predictions_table.put_item(
+            Item={
+                "model_name": model_name,
+                "timestamp": datetime.now().isoformat(),
+                "version": model_version,
+                "input": {"value": Decimal(str(value)), "timestamp": timestamp},
+                "output": {"is_anomaly": is_anomaly},
+            }
+        )
+        add_metric("PredictionPersisted", 1)
+        logger.debug("Prediction persisted to DynamoDB")
+        return {
+            "is_anomaly": is_anomaly,
             "model_name": model_name,
-            "timestamp": datetime.now().isoformat(),
-            "version": model_version,
-            "input": {"value": Decimal(str(value)), "timestamp": timestamp},
-            "output": {"is_anomaly": is_anomaly},
-        }
-    )
-
-    return {"is_anomaly": is_anomaly}
+            "model_version": model_version,
+        }, 201
+    except Exception as e:
+        logger.exception(f"Error during prediction: {str(e)}")
+        add_metric("PredictionError", 1)
+        return {"error": "Internal server error"}, 500
 
 
+@logger.inject_lambda_context
 def handler(event, context):
     """AWS Lambda handler for classifying anomalies in time series data."""
     return app.resolve(event, context)
