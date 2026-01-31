@@ -1,0 +1,29 @@
+apiVersion: 1
+
+providers:
+  - name: 'Provisioned DataSources'
+    orgId: 1
+    folder: ''
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /etc/grafana/provisioning/datasources
+
+datasources:
+  # CloudWatch datasource for LocalStack
+  - name: CloudWatch LocalStack
+    type: cloudwatch
+    access: proxy
+    orgId: 1
+    uid: cloudwatch-uid
+    isDefault: true
+    editable: true
+    jsonData:
+      authType: keys
+      defaultRegion: us-east-1
+      # For LocalStack, use the endpoint URL
+      endpoint: http://localstack:4566
+    secureJsonData:
+      accessKey: $AWS_ACCESS_KEY_ID
+      secretKey: $AWS_SECRET_ACCESS_KEY
