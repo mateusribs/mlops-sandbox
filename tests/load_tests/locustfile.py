@@ -9,7 +9,7 @@ from locust import HttpUser, TaskSet, between, task
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(__file__))
 
-from tests.load_tests.config import API_GATEWAY_CONFIG, LAMBDA_FUNCTIONS, LOAD_TEST_CONFIG
+from tests.load_tests.config import API_GATEWAY_CONFIG, LAMBDA_FUNCTIONS
 
 load_dotenv()
 
@@ -27,11 +27,17 @@ class APIGatewayTasks(TaskSet):
         Returns:
             dict: Payload ready for HTTP POST request
         """
-        value_min, value_max = LOAD_TEST_CONFIG["value_range"]
+        value_min, value_max = (0, 100)
+        anomaly_prob = 0.05
+
+        if random.random() < anomaly_prob:
+            value = random.uniform(value_max * 3.5, value_max * 4.5)
+        else:
+            value = random.uniform(value_min, value_max)
         return {
             "model_name": lambda_config["model_name"],
             "model_version": lambda_config["model_version"],
-            "value": random.uniform(value_min, value_max),
+            "value": value,
             "timestamp": datetime.now().isoformat(),
         }
 
