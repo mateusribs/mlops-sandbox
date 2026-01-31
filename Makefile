@@ -10,3 +10,11 @@ train-models:
 
 load_test:
 	@bash tests/load_tests/run_test.sh
+
+up:
+	@docker compose down
+	@sudo rm -rf grafana-data/
+	@docker compose up -d --build
+	@sleep 10
+	@bash cleanup.sh
+	@bash deploy.sh
