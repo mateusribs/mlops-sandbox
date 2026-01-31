@@ -11,8 +11,10 @@ resource "aws_lambda_function" "classify_anomaly" {
 
   environment {
     variables = {
-      STAGE                  = var.stage
-      MODEL_REGISTRY_TABLE   = aws_dynamodb_table.model_registry.name
+      STAGE                        = var.stage
+      MODEL_REGISTRY_TABLE         = aws_dynamodb_table.model_registry.name
+      POWERTOOLS_METRICS_NAMESPACE = "ClassifyAnomaly"
+      POWERTOOLS_SERVICE_NAME      = "ClassifyAnomalyService"
     }
   }
 
@@ -43,8 +45,8 @@ resource "aws_lambda_function" "classify_level" {
 
   environment {
     variables = {
-      STAGE                  = var.stage
-      MODEL_REGISTRY_TABLE   = aws_dynamodb_table.model_registry.name
+      STAGE                = var.stage
+      MODEL_REGISTRY_TABLE = aws_dynamodb_table.model_registry.name
     }
   }
 
@@ -89,19 +91,19 @@ resource "aws_lambda_function_url" "classify_level" {
 
 # Lambda permissions for Function URLs
 resource "aws_lambda_permission" "classify_anomaly_url" {
-  count              = var.enable_function_urls ? 1 : 0
-  statement_id       = "AllowFunctionUrlInvoke"
-  action             = "lambda:InvokeFunctionUrl"
-  function_name      = aws_lambda_function.classify_anomaly.function_name
-  principal          = "*"
+  count                  = var.enable_function_urls ? 1 : 0
+  statement_id           = "AllowFunctionUrlInvoke"
+  action                 = "lambda:InvokeFunctionUrl"
+  function_name          = aws_lambda_function.classify_anomaly.function_name
+  principal              = "*"
   function_url_auth_type = "NONE"
 }
 
 resource "aws_lambda_permission" "classify_level_url" {
-  count              = var.enable_function_urls ? 1 : 0
-  statement_id       = "AllowFunctionUrlInvoke"
-  action             = "lambda:InvokeFunctionUrl"
-  function_name      = aws_lambda_function.classify_level.function_name
-  principal          = "*"
+  count                  = var.enable_function_urls ? 1 : 0
+  statement_id           = "AllowFunctionUrlInvoke"
+  action                 = "lambda:InvokeFunctionUrl"
+  function_name          = aws_lambda_function.classify_level.function_name
+  principal              = "*"
   function_url_auth_type = "NONE"
 }

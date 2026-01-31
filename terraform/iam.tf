@@ -73,3 +73,26 @@ resource "aws_iam_role_policy" "cloudwatch_metrics" {
     ]
   })
 }
+
+# S3 Access Policy for Model Loading
+resource "aws_iam_role_policy" "s3_model_access" {
+  name = "${local.resource_prefix}-s3-model-access"
+  role = aws_iam_role.lambda_execution.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+          "s3:ListBucket"
+        ]
+        Resource = [
+          "arn:aws:s3:::${var.lambda_code_bucket}",
+          "arn:aws:s3:::${var.lambda_code_bucket}/*"
+        ]
+      }
+    ]
+  })
+}

@@ -8,10 +8,10 @@ locals {
   # Common tags for all resources
   common_tags = merge(
     {
-      Project     = local.project_name
-      Stage       = var.stage
-      ManagedBy   = "Terraform"
-      CreatedAt   = timestamp()
+      Project   = local.project_name
+      Stage     = var.stage
+      ManagedBy = "Terraform"
+      CreatedAt = timestamp()
     },
     var.tags
   )
@@ -29,9 +29,6 @@ locals {
 
   # API Gateway
   api_gateway_name = "${local.resource_prefix}-api"
-
-  # CloudWatch
-  dashboard_name = "MLOpsSandbox-AnomalyClassifier"
 
   # Lambda code keys in S3
   classify_anomaly_s3_key = "classify_anomaly.zip"

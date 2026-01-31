@@ -100,16 +100,6 @@ output "rest_api_level_endpoint" {
   ) : null
 }
 
-# CloudWatch Outputs
-output "cloudwatch_dashboard_url" {
-  description = "URL to the CloudWatch dashboard"
-  value = format(
-    "https://console.aws.amazon.com/cloudwatch/home?region=%s#dashboards:name=%s",
-    data.aws_region.current.name,
-    aws_cloudwatch_dashboard.anomaly_classifier.dashboard_name
-  )
-}
-
 # Project Information
 output "project_stage" {
   description = "Current deployment stage"
